@@ -6,7 +6,7 @@ using TR.Connectors.Api.Interfaces;
 
 namespace TR.Connector
 {
-    public partial class Connector : IConnector
+    public class Connector : IConnector
     {
         public ILogger Logger { get; set; }
 

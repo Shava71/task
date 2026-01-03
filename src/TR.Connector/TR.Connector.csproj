@@ -12,4 +12,8 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TR.Connectors.Api\TR.Connectors.Api.csproj" />
+  </ItemGroup>
+
 </Project>
