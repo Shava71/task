@@ -20,19 +20,30 @@ public class TrApiClient : ITrApiClient
     
     public async Task<string> LoginAsync(string login, string password)
     {
-        HttpResponseMessage response = await _httpClient.PostAsJsonAsync(ApiRoutes.Login,
-            new UIAuthConfig
+        // HttpResponseMessage response = await _httpClient.PostAsJsonAsync(ApiRoutes.Login,
+        //     new UIAuthConfig
+        //     {
+        //         login = login,
+        //         password = password
+        //     });
+        //
+        // ApiResponse<TokenResponse> result = (await response.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>())!;
+        //
+        // if (!result.success)
+        // {
+        //     throw new Exception(result.errorText);
+        // }
+
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, ApiRoutes.Login)
+        {
+            Content = JsonContent.Create(new UIAuthConfig // body для post-запроса 
             {
                 login = login,
                 password = password
-            });
+            })
+        };
         
-        ApiResponse<TokenResponse> result = (await response.Content.ReadFromJsonAsync<ApiResponse<TokenResponse>>())!;
-
-        if (!result.success)
-        {
-            throw new Exception(result.errorText);
-        }
+        ApiResponse<TokenResponse>? result = await SendRequestAsync<TokenResponse>(request);
 
         _httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", result.data.access_token); // сохраняем jwt-token для следующих запросов
@@ -41,48 +52,46 @@ public class TrApiClient : ITrApiClient
     }
 
     public async Task<List<RoleResponse>?> GetAllRolesAsync()
-    {
-        List<RoleResponse>? allRoles = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RoleResponse>>>(ApiRoutes.RolesAll))?.data;
-        return allRoles;
+    { 
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.RolesAll);
+        ApiResponse<List<RoleResponse>>? result = await SendRequestAsync<List<RoleResponse>>(request);
+        return result.data;
     }
 
     public async Task<List<RightResponse>> GetAllRightsAsync()
     {
-        List<RightResponse>? allRights = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RightResponse>>>(ApiRoutes.RightsAll))?.data;
-        return allRights;
+        
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.RightsAll);
+        ApiResponse<List<RightResponse>>? result = await SendRequestAsync<List<RightResponse>>(request);
+        return result.data;
     }
 
     public async Task<List<RoleResponse>?> GetUserRolesAsync(string login)
     {
-        List<RoleResponse>? userRoles = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RoleResponse>>>(
-            ApiRoutes.UserRoles(login: login)
-        ))?.data;
-        
-        return userRoles;
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.UserRoles(login: login));
+        ApiResponse<List<RoleResponse>>? result = await SendRequestAsync<List<RoleResponse>>(request);
+        return result.data;
     }
 
     public async Task<List<RightResponse>?> GetUserRightsAsync(string login)
     {
-        List<RightResponse>? userRigths = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RightResponse>>>(
-            ApiRoutes.UserRights(login: login)
-        ))?.data;
-        return userRigths;
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.UserRights(login: login));
+        ApiResponse<List<RightResponse>>? result = await SendRequestAsync<List<RightResponse>>(request);
+        return result.data;
     }
 
     public async Task<List<UserResponse>?> GetAllUsersAsync()
     {
-        List<UserResponse>? users = (await _httpClient.GetFromJsonAsync<ApiResponse<List<UserResponse>>>(ApiRoutes.UsersAll))?.data;
-        return users;
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.UsersAll);
+        ApiResponse<List<UserResponse>>? response = await SendRequestAsync<List<UserResponse>>(request);
+        return response.data;
     }
 
     public async Task<UserByPropertiesDto?> GetUserAsync(string login)
     {
-        ApiResponse<UserByPropertiesDto>? response = (await _httpClient.GetFromJsonAsync<ApiResponse<UserByPropertiesDto>>(ApiRoutes.User(login:login)));
-        if (response is not null && !response.success)
-        {
-            throw new Exception(response.errorText);
-        }
-        return response.data;
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ApiRoutes.User(login));
+        ApiResponse<UserByPropertiesDto> result = await SendRequestAsync<UserByPropertiesDto>(request);
+        return result.data;
     }
 
     public async Task CreateUserAsync(NewUserDto user)
@@ -127,5 +136,23 @@ public class TrApiClient : ITrApiClient
             login: login,
             rightId: rightId
         ));
+    }
+
+    private async Task<ApiResponse<T>> SendRequestAsync<T>(HttpRequestMessage request)
+    {
+        HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP Error: {response.StatusCode}", null, response.StatusCode);
+        }
+        
+        ApiResponse<T> responseData = (await response.Content.ReadFromJsonAsync<ApiResponse<T>>())!;
+
+        if (!responseData.success)
+        {
+            throw new Exception(responseData.errorText);
+        }
+        return responseData;
     }
 }
