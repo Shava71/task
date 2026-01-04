@@ -42,63 +42,90 @@ public class TrApiClient : ITrApiClient
 
     public async Task<List<RoleResponse>?> GetAllRolesAsync()
     {
-        List<RoleResponse>? allRolesAsync = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RoleResponse>>>(ApiRoutes.RolesAll))?.data;
-        return allRolesAsync;
+        List<RoleResponse>? allRoles = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RoleResponse>>>(ApiRoutes.RolesAll))?.data;
+        return allRoles;
     }
 
     public async Task<List<RightResponse>> GetAllRightsAsync()
     {
-        List<RightResponse>? allRightsAsync = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RightResponse>>>(ApiRoutes.RightsAll))?.data;
-        return allRightsAsync;
+        List<RightResponse>? allRights = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RightResponse>>>(ApiRoutes.RightsAll))?.data;
+        return allRights;
     }
 
-    public async Task<List<RoleResponse>> GetUserRolesAsync(string login)
+    public async Task<List<RoleResponse>?> GetUserRolesAsync(string login)
     {
+        List<RoleResponse>? userRoles = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RoleResponse>>>(
+            ApiRoutes.UserRoles(login: login)
+        ))?.data;
         
+        return userRoles;
     }
 
-    public async Task<List<RightResponse>> GetUserRightsAsync(string login)
+    public async Task<List<RightResponse>?> GetUserRightsAsync(string login)
     {
-        
+        List<RightResponse>? userRigths = (await _httpClient.GetFromJsonAsync<ApiResponse<List<RightResponse>>>(
+            ApiRoutes.UserRights(login: login)
+        ))?.data;
+        return userRigths;
     }
 
-    public async Task<List<UserResponse>> GetAllUsersAsync()
+    public async Task<List<UserResponse>?> GetAllUsersAsync()
     {
-        
+        List<UserResponse>? users = (await _httpClient.GetFromJsonAsync<ApiResponse<List<UserResponse>>>(ApiRoutes.UsersAll))?.data;
+        return users;
     }
 
-    public async Task<UserByPropertiesDto> GetUserAsync(string login)
+    public async Task<UserByPropertiesDto?> GetUserAsync(string login)
     {
-        
+        ApiResponse<UserByPropertiesDto>? response = (await _httpClient.GetFromJsonAsync<ApiResponse<UserByPropertiesDto>>(ApiRoutes.User(login:login)));
+        if (response is not null && !response.success)
+        {
+            throw new Exception(response.errorText);
+        }
+        return response.data;
     }
 
     public async Task CreateUserAsync(NewUserDto user)
     {
-        
+        await _httpClient.PostAsJsonAsync(ApiRoutes.UserCreate, user);
     }
 
     public async Task UpdateUserAsync(UserByPropertiesDto user)
     {
-        
+        await _httpClient.PutAsJsonAsync(ApiRoutes.UserEdit, user);
     }
 
     public async Task AddRoleAsync(string login, int roleId)
     {
-        
+        await _httpClient.PutAsync(ApiRoutes.AddRole(
+                login: login, 
+                roleId: roleId), 
+            null
+            );
     }
 
     public async Task AddRightAsync(string login, int rightId)
     {
-        
+        await _httpClient.PutAsync(ApiRoutes.AddRight(
+                login: login, 
+                rightId: rightId), 
+            null
+        );
     }
 
     public async Task RemoveRoleAsync(string login, int roleId)
     {
-        
+        await _httpClient.DeleteAsync(ApiRoutes.DropRole(
+            login: login,
+            roleId: roleId
+        ));
     }
 
     public async Task RemoveRightAsync(string login, int rightId)
     {
-        
+        await _httpClient.DeleteAsync(ApiRoutes.DropRight(
+            login: login,
+            rightId: rightId
+        ));
     }
 }
