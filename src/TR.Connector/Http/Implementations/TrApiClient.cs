@@ -5,6 +5,7 @@ using TR.Connector.DTOs.CommonResponse;
 using TR.Connector.DTOs.Permission;
 using TR.Connector.DTOs.User;
 using TR.Connector.Http.Interfaces;
+using TR.Connector.Http.JwtToken;
 using TR.Connectors.Api.Api;
 
 namespace TR.Connector.Http.Implementations;
@@ -12,10 +13,12 @@ namespace TR.Connector.Http.Implementations;
 public class TrApiClient : ITrApiClient
 {
     private readonly HttpClient _httpClient;
+    private readonly ITokenStore _tokenStore;
 
-    public TrApiClient(HttpClient httpClient)
+    public TrApiClient(HttpClient httpClient, ITokenStore tokenStore)
     {
         _httpClient = httpClient;
+        _tokenStore = tokenStore;
     }
     
     public async Task<string> LoginAsync(string login, string password)
@@ -45,8 +48,9 @@ public class TrApiClient : ITrApiClient
         
         ApiResponse<TokenResponse>? result = await SendRequestAsync<TokenResponse>(request);
 
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", result.data.access_token); // сохраняем jwt-token для следующих запросов
+        // _httpClient.DefaultRequestHeaders.Authorization =
+        //     new AuthenticationHeaderValue("Bearer", result.data.access_token); // сохраняем jwt-token для следующих запросов
+        _tokenStore.AccessToken = result.data.access_token; // заменяем код выше на DelegatingHandler из-за IHttpClientFactory 
         
         return result.data.access_token;
     }

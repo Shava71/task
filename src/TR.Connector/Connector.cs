@@ -1,6 +1,9 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using TR.Connector.DTOs.Auth;
+using TR.Connector.DTOs.Permission;
+using TR.Connector.DTOs.User;
 using TR.Connectors.Api.Entities;
 using TR.Connectors.Api.Interfaces;
 
