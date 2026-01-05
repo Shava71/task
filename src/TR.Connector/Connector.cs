@@ -1,9 +1,15 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using TR.Connector.Constants;
 using TR.Connector.DTOs.Auth;
 using TR.Connector.DTOs.Permission;
 using TR.Connector.DTOs.User;
+using TR.Connector.Extentsions;
+using TR.Connector.Http.Interfaces;
+using TR.Connector.Mapping;
+using TR.Connector.Options;
 using TR.Connectors.Api.Entities;
 using TR.Connectors.Api.Interfaces;
 
@@ -13,74 +19,78 @@ namespace TR.Connector
     {
         public ILogger Logger { get; set; }
 
-        private string url = "";
-        private string login = "";
-        private string password = "";
-
-        private string token = "";
+        private ITrApiClient _api;
 
         //Пустой конструктор
         public Connector() {}
 
         public void StartUp(string connectionString)
         {
-            //Парсим строку подключения.
+            // Пасрим строку подключения
             Logger.Debug("Строка подключения: " + connectionString);
-            foreach (var item in connectionString.Split(';'))
-            {
-                if (item.StartsWith("url")) url = item.Split('=')[1];
-                if (item.StartsWith("login")) login = item.Split('=')[1];
-                if (item.StartsWith("password")) password = item.Split('=')[1];
-            }
+            ConnectorOptionsValues options = ConnectorOptions.ParseConnectionString(connectionString);
 
-            //Проходим аунтификацию на сервере.
-            var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(url);
-            var body = new { login, password };
-            var content = new StringContent(JsonSerializer.Serialize(body), UnicodeEncoding.UTF8, "application/json");
-            var response = httpClient.PostAsync("api/v1/login", content).Result;
-            var tokenResponse = JsonSerializer.Deserialize<TokenResponse>(response.Content.ReadAsStringAsync().Result);
-            token = tokenResponse.data.access_token;
+            ServiceCollection services = new ServiceCollection();
+            services.AddJwtTokenStore();
+            services.AddTrHttpClient(options.Url);
+            
+            using ServiceProvider provider = services.BuildServiceProvider();
+            _api = provider.GetRequiredService<ITrApiClient>();
+            // проходим аутентификацию на сервере
+            _api.LoginAsync(options.Login, options.Password).GetAwaiter().GetResult();
         }
 
         public IEnumerable<Permission> GetAllPermissions()
         {
-            var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(url);
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
             //Получаем ИТРоли
-            var response = httpClient.GetAsync("api/v1/roles/all").Result;
-            var itRoleResponse = JsonSerializer.Deserialize<RoleResponse>(response.Content.ReadAsStringAsync().Result);
-            var itRolePermissions =
-                itRoleResponse.data.Select(_ => new Permission($"ItRole,{_.id}", _.name, _.corporatePhoneNumber));
-
+            List<RoleResponse>? roles = _api.GetAllRolesAsync()
+                .GetAwaiter()
+                .GetResult();
+            
             //Получаем права
-            response = httpClient.GetAsync("api/v1/rights/all").Result;
-            var RightResponse = JsonSerializer.Deserialize<RoleResponse>(response.Content.ReadAsStringAsync().Result);
-            var RightPermissions = RightResponse.data.Select(_ =>
-                new Permission($"RequestRight,{_.id}", _.name, _.corporatePhoneNumber));
+            List<RightResponse>? rights = _api.GetAllRightsAsync()
+                .GetAwaiter()
+                .GetResult();
 
-            return itRolePermissions.Concat(RightPermissions);
+            return roles.Select(r => r.ToPermission())
+                .Concat(
+                    rights.Select(r => r.ToPermission())
+                );
+            
         }
 
         public IEnumerable<string> GetUserPermissions(string userLogin)
         {
-            var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(url);
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
+            // var httpClient = new HttpClient();
+            // httpClient.BaseAddress = new Uri(url);
+            // httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            //
+            // //Получаем ИТРоли
+            // var response = httpClient.GetAsync($"api/v1/users/{userLogin}/roles").Result;
+            // var itRoleResponse = JsonSerializer.Deserialize<UserRoleResponse>(response.Content.ReadAsStringAsync().Result);
+            // var result1 = itRoleResponse.data.Select(_ => $"ItRole,{_.id}").ToList();
+            //
+            // //Получаем права
+            // response = httpClient.GetAsync($"api/v1/users/{userLogin}/rights").Result;
+            // var RightResponse = JsonSerializer.Deserialize<UserRoleResponse>(response.Content.ReadAsStringAsync().Result);
+            // var result2 = RightResponse.data.Select(_ => $"RequestRight,{_.id}").ToList();
+            //
+            // return result1.Concat(result2).ToList();
+            
             //Получаем ИТРоли
-            var response = httpClient.GetAsync($"api/v1/users/{userLogin}/roles").Result;
-            var itRoleResponse = JsonSerializer.Deserialize<UserRoleResponse>(response.Content.ReadAsStringAsync().Result);
-            var result1 = itRoleResponse.data.Select(_ => $"ItRole,{_.id}").ToList();
-
+            List<RoleResponse>? roles = _api.GetUserRolesAsync(login: userLogin)
+                .GetAwaiter()
+                .GetResult();
+            
             //Получаем права
-            response = httpClient.GetAsync($"api/v1/users/{userLogin}/rights").Result;
-            var RightResponse = JsonSerializer.Deserialize<UserRoleResponse>(response.Content.ReadAsStringAsync().Result);
-            var result2 = RightResponse.data.Select(_ => $"RequestRight,{_.id}").ToList();
+            List<RightResponse>? rights = _api.GetUserRightsAsync(login: userLogin)
+                .GetAwaiter()
+                .GetResult();
 
-            return result1.Concat(result2).ToList();
+            return roles.Select(r => r.ToPermission().Id)
+                .Concat(
+                    rights.Select(r => r.ToPermission().Id)
+                );
         }
 
         public void AddUserPermissions(string userLogin, IEnumerable<string> rightIds)
@@ -215,7 +225,7 @@ namespace TR.Connector
             httpClient.PutAsync("api/v1/users/edit", content).Wait();
         }
 
-        public bool IsUserExists(string userLogin)
+        public async Task<bool> IsUserExists(string userLogin)
         {
             var httpClient = new HttpClient();
             httpClient.BaseAddress = new Uri(url);
@@ -230,31 +240,12 @@ namespace TR.Connector
             return false;
         }
 
-        public void CreateUser(UserToCreate user)
+        public async Task CreateUser(UserToCreate user)
         {
-            var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(url);
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            var newUser = new CreateUSerDTO()
-            {
-                login = user.Login,
-                password = user.HashPassword,
-
-                lastName = user.Properties.FirstOrDefault(p => p.Name.Equals("lastName", StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty,
-                firstName = user.Properties.FirstOrDefault(p => p.Name.Equals("firstName", StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty,
-                middleName = user.Properties.FirstOrDefault(p => p.Name.Equals("middleName", StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty,
-
-                telephoneNumber = user.Properties.FirstOrDefault(p => p.Name.Equals("telephoneNumber", StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty,
-                isLead = bool.TryParse(user.Properties.FirstOrDefault(p => p.Name.Equals("isLead", StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty, out bool isLeadValue)
-                    ? isLeadValue
-                    : false,
-
-                status = string.Empty
-            };
-
-            var content = new StringContent(JsonSerializer.Serialize(newUser), UnicodeEncoding.UTF8, "application/json");
-            httpClient.PostAsync("api/v1/users/create", content).Wait();
+            NewUserDto newUser = user.ToDto();
+            await _api.CreateUserAsync(newUser);
         }
+        
+        private 
     }
 }

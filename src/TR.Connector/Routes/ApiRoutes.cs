@@ -1,4 +1,4 @@
-namespace TR.Connectors.Api.Api;
+namespace TR.Connectors.Routes;
 
 /// <summary>
 /// Статический класс api-эндпоинтов сервиса

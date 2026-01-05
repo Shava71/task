@@ -6,7 +6,7 @@ using TR.Connector.DTOs.Permission;
 using TR.Connector.DTOs.User;
 using TR.Connector.Http.Interfaces;
 using TR.Connector.Http.JwtToken;
-using TR.Connectors.Api.Api;
+using TR.Connectors.Routes;
 
 namespace TR.Connector.Http.Implementations;
 
