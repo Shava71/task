@@ -168,16 +168,26 @@ namespace TR.Connector
         public void UpdateUserProperties(IEnumerable<UserProperty> properties, string userLogin)
         {
             UserByPropertiesDto user = GetUnlockedUser(userLogin);
+            
+            Dictionary<string, PropertyInfo> props = user.GetType().GetProperties()
+                .Where(p => p.CanWrite)
+                .ToDictionary(p => p.Name);
 
             foreach (UserProperty property in properties)
             {
-                foreach (PropertyInfo userProp in user.GetType().GetProperties())
+                // foreach (PropertyInfo userProp in user.GetType().GetProperties())
+                // {
+                //     if (property.Name == userProp.Name)
+                //     {
+                //         userProp.SetValue(user, property.Value);
+                //     }
+                // }
+                props.TryGetValue(property.Name, out PropertyInfo prop); //Вместо O(n) получим O(1) засчёт словаря
+                if (prop.PropertyType != typeof(string))
                 {
-                    if (property.Name == userProp.Name)
-                    {
-                        userProp.SetValue(user, property.Value);
-                    }
+                    throw new Exception("prop type is not string");
                 }
+                prop.SetValue(user, property.Value.ToString());
             }
 
             _api.UpdateUserAsync(user)
