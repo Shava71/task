@@ -22,6 +22,8 @@ namespace TR.Connector
 
         private ITrApiClient _api;
 
+        private Dictionary<string, Func<string, int, Task>> _permissionHandlers; // обработка switch-case permissions
+
         //Пустой конструктор
         public Connector() {}
 
@@ -39,6 +41,12 @@ namespace TR.Connector
             _api = provider.GetRequiredService<ITrApiClient>();
             // проходим аутентификацию на сервере
             _api.LoginAsync(options.Login, options.Password).GetAwaiter().GetResult();
+
+            _permissionHandlers = new Dictionary<string, Func<string, int, Task>>()
+            {
+                [ApiConstants.ItRole] = async (userLogin, roleId) => _api.AddRoleAsync(userLogin, roleId),
+                [ApiConstants.RequestRight] = async (userLogin, roleId) => _api.RemoveRightAsync(userLogin, roleId)
+            };
         }
 
         public IEnumerable<Permission> GetAllPermissions()
@@ -86,20 +94,25 @@ namespace TR.Connector
              foreach (string rightId in rightIds)
              {
                  string[] rightStr = rightId.Split(',');
-                 switch (rightStr[0])
+                 // switch (rightStr[0])
+                 // {
+                 //     case ApiConstants.ItRole:
+                 //         _api.AddRoleAsync(userLogin, int.Parse(rightStr[1]))
+                 //             .GetAwaiter().GetResult();
+                 //         break;
+                 //
+                 //     case ApiConstants.RequestRight:
+                 //         _api.AddRightAsync(userLogin, int.Parse(rightStr[1]))
+                 //             .GetAwaiter().GetResult();
+                 //         break;
+                 //     default:
+                 //         throw new Exception($"Тип доступа {rightStr[0]} не определен");
+                 // }
+                 if (_permissionHandlers.TryGetValue(rightStr[0], out var handler)) // получаем нужную функцию из словаря
                  {
-                     case ApiConstants.ItRole:
-                         _api.AddRoleAsync(userLogin, int.Parse(rightStr[1]))
-                             .GetAwaiter().GetResult();
-                         break;
-
-                     case ApiConstants.RequestRight:
-                         _api.AddRightAsync(userLogin, int.Parse(rightStr[1]))
-                             .GetAwaiter().GetResult();
-                         break;
-                     default:
-                         throw new Exception($"Тип доступа {rightStr[0]} не определен");
+                     throw new Exception($"Тип доступа {rightStr[0]} не определён", null);
                  }
+                 handler!(userLogin, int.Parse(rightStr[1])).GetAwaiter().GetResult();
              }
              
         }
@@ -113,20 +126,11 @@ namespace TR.Connector
              foreach (string rightId in rightIds)
              {
                  string[] rightStr = rightId.Split(',');
-                 switch (rightStr[0])
+                 if (_permissionHandlers.TryGetValue(rightStr[0], out var handler)) // получаем нужную функцию из словаря
                  {
-                     case ApiConstants.ItRole:
-                         _api.RemoveRoleAsync(userLogin, int.Parse(rightStr[1]))
-                             .GetAwaiter().GetResult();
-                         break;
-
-                     case ApiConstants.RequestRight:
-                         _api.RemoveRightAsync(userLogin, int.Parse(rightStr[1]))
-                             .GetAwaiter().GetResult();
-                         break;
-                     default:
-                         throw new Exception($"Тип доступа {rightStr[0]} не определен");
+                     throw new Exception($"Тип доступа {rightStr[0]} не определён", null);
                  }
+                 handler!(userLogin, int.Parse(rightStr[1])).GetAwaiter().GetResult();
              }
         }
 
